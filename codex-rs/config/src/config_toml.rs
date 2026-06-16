@@ -347,6 +347,12 @@ pub struct ConfigToml {
     /// Per-thread `config` overrides are accepted but do not reapply this (no-ops).
     pub model_catalog_json: Option<AbsolutePathBuf>,
 
+    /// Optional allowlist of models.dev provider ids for `codex providers login`.
+    pub enabled_providers: Option<Vec<String>>,
+
+    /// Optional denylist of models.dev provider ids for `codex providers login`.
+    pub disabled_providers: Option<Vec<String>>,
+
     /// Optionally specify a personality for the model
     pub personality: Option<Personality>,
 

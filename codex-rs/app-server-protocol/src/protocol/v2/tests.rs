@@ -3676,6 +3676,47 @@ fn thread_settings_update_params_preserve_explicit_null_service_tier() {
 }
 
 #[test]
+fn thread_settings_update_params_round_trip_model_provider() {
+    let params: ThreadSettingsUpdateParams = serde_json::from_value(json!({
+        "threadId": "thread_123",
+        "modelProvider": "xiaomi-token-plan-sgp",
+        "modelProviderInfo": {
+            "name": "Xiaomi Token Plan",
+            "base_url": "https://example.invalid/v1",
+            "env_key": "XIAOMI_API_KEY"
+        },
+        "model": "mimo-v2.5"
+    }))
+    .expect("params should deserialize");
+
+    assert_eq!(
+        params.model_provider,
+        Some("xiaomi-token-plan-sgp".to_string())
+    );
+    assert_eq!(
+        params
+            .model_provider_info
+            .as_ref()
+            .and_then(|info| info.get("base_url"))
+            .and_then(serde_json::Value::as_str),
+        Some("https://example.invalid/v1")
+    );
+    assert_eq!(params.model, Some("mimo-v2.5".to_string()));
+
+    let serialized = serde_json::to_value(&params).expect("params should serialize");
+    assert_eq!(
+        serialized.get("modelProvider"),
+        Some(&json!("xiaomi-token-plan-sgp"))
+    );
+    assert_eq!(
+        serialized
+            .get("modelProviderInfo")
+            .and_then(|info| info.get("env_key")),
+        Some(&json!("XIAOMI_API_KEY"))
+    );
+}
+
+#[test]
 fn thread_settings_update_params_preserve_field_level_experimental_gates() {
     let permissions = ThreadSettingsUpdateParams {
         thread_id: "thread_123".to_string(),

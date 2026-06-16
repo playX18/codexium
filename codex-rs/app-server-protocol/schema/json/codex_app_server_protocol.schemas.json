@@ -12251,6 +12251,7 @@
         "description": "Initial collaboration mode to use when the TUI starts.",
         "enum": [
           "plan",
+          "compose",
           "default"
         ],
         "type": "string"

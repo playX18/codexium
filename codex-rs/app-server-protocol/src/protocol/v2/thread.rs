@@ -207,6 +207,12 @@ pub struct ThreadSettingsUpdateParams {
     /// Override the model for subsequent turns.
     #[ts(optional = nullable)]
     pub model: Option<String>,
+    /// Override the model provider for subsequent turns.
+    #[ts(optional = nullable)]
+    pub model_provider: Option<String>,
+    /// Resolved provider definition for `modelProvider`.
+    #[ts(optional = nullable)]
+    pub model_provider_info: Option<JsonValue>,
     /// Override the service tier for subsequent turns. `null` clears the
     /// current service tier; omission leaves it unchanged.
     #[serde(
