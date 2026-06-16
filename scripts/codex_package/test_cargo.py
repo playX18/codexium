@@ -73,7 +73,7 @@ class SourceBinariesForTargetTest(unittest.TestCase):
     def test_build_uses_prebuilt_windows_helpers_without_running_cargo(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            entrypoint = touch_file(root / "codex.exe")
+            entrypoint = touch_file(root / "codexium.exe")
             command_runner = touch_file(root / "codex-command-runner.exe")
             sandbox_setup = touch_file(root / "codex-windows-sandbox-setup.exe")
 

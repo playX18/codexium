@@ -6,8 +6,8 @@ RELEASE="${CODEX_RELEASE:-latest}"
 NON_INTERACTIVE="${CODEX_NON_INTERACTIVE:-false}"
 
 BIN_DIR="${CODEX_INSTALL_DIR:-$HOME/.local/bin}"
-BIN_PATH="$BIN_DIR/codex"
-CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+BIN_PATH="$BIN_DIR/codexium"
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codexium}"
 STANDALONE_ROOT="$CODEX_HOME_DIR/packages/standalone"
 RELEASES_DIR="$STANDALONE_ROOT/releases"
 CURRENT_LINK="$STANDALONE_ROOT/current"
@@ -513,6 +513,18 @@ version_from_binary() {
 }
 
 current_installed_version() {
+  version="$(version_from_binary "$CURRENT_LINK/bin/codexium" || true)"
+  if [ -n "$version" ]; then
+    printf '%s\n' "$version"
+    return 0
+  fi
+
+  version="$(version_from_binary "$CURRENT_LINK/codexium" || true)"
+  if [ -n "$version" ]; then
+    printf '%s\n' "$version"
+    return 0
+  fi
+
   version="$(version_from_binary "$CURRENT_LINK/bin/codex" || true)"
   if [ -n "$version" ]; then
     printf '%s\n' "$version"
@@ -529,7 +541,7 @@ current_installed_version() {
 }
 
 resolve_existing_codex() {
-  command -v codex 2>/dev/null || true
+  command -v codexium 2>/dev/null || true
 }
 
 classify_existing_codex() {
@@ -599,23 +611,23 @@ prompt_yes_no() {
 print_launch_instructions() {
   case "$path_action" in
     added)
-      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codexium"
+      step "Future terminals: open a new terminal and run: codexium"
       step "PATH was added to $path_profile"
       ;;
     updated)
-      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codexium"
+      step "Future terminals: open a new terminal and run: codexium"
       step "PATH was updated in $path_profile"
       ;;
     configured)
-      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: export PATH=\"$BIN_DIR:\$PATH\" && codexium"
+      step "Future terminals: open a new terminal and run: codexium"
       step "PATH is already configured in $path_profile"
       ;;
     *)
-      step "Current terminal: codex"
-      step "Future terminals: open a new terminal and run: codex"
+      step "Current terminal: codexium"
+      step "Future terminals: open a new terminal and run: codexium"
       ;;
   esac
 }
@@ -664,7 +676,7 @@ handle_conflicting_install() {
       warn "Failed to uninstall the existing $conflict_manager-managed Codex. Continuing with the standalone install."
     fi
   else
-    warn "Leaving the existing $conflict_manager-managed Codex installed. PATH order will determine which codex runs."
+    warn "Leaving the existing $conflict_manager-managed Codex installed. PATH order will determine which codexium runs."
   fi
 }
 
@@ -677,11 +689,20 @@ install_package_release() {
   rm -rf "$stage_release"
   mkdir -p "$stage_release"
   tar -xzf "$archive_path" -C "$stage_release"
-  chmod 0755 "$stage_release/bin/codex" "$stage_release/codex-path/rg"
+  if [ -x "$stage_release/bin/codexium" ]; then
+    chmod 0755 "$stage_release/bin/codexium"
+  else
+    chmod 0755 "$stage_release/bin/codex"
+  fi
+  chmod 0755 "$stage_release/codex-path/rg"
   if [ -f "$stage_release/codex-resources/bwrap" ]; then
     chmod 0755 "$stage_release/codex-resources/bwrap"
   fi
-  ln -sf "bin/codex" "$stage_release/codex"
+  if [ -x "$stage_release/bin/codexium" ]; then
+    ln -sf "bin/codexium" "$stage_release/codexium"
+  else
+    ln -sf "bin/codex" "$stage_release/codexium"
+  fi
 
   if [ -e "$release_dir" ] || [ -L "$release_dir" ]; then
     rm -rf "$release_dir"
@@ -702,9 +723,13 @@ install_legacy_platform_npm_release() {
   mkdir -p "$stage_release/codex-resources" "$extract_dir"
   tar -xzf "$archive_path" -C "$extract_dir"
 
-  cp "$vendor_root/codex/codex" "$stage_release/codex"
+  if [ -x "$vendor_root/codex/codexium" ]; then
+    cp "$vendor_root/codex/codexium" "$stage_release/codexium"
+  else
+    cp "$vendor_root/codex/codex" "$stage_release/codexium"
+  fi
   cp "$vendor_root/path/rg" "$stage_release/codex-resources/rg"
-  chmod 0755 "$stage_release/codex" "$stage_release/codex-resources/rg"
+  chmod 0755 "$stage_release/codexium" "$stage_release/codex-resources/rg"
   if [ -f "$vendor_root/codex-resources/bwrap" ]; then
     cp "$vendor_root/codex-resources/bwrap" "$stage_release/codex-resources/bwrap"
     chmod 0755 "$stage_release/codex-resources/bwrap"
@@ -729,13 +754,13 @@ release_dir_is_complete() {
   case "$layout" in
     package)
       [ -f "$release_dir/codex-package.json" ] &&
-        [ -x "$release_dir/bin/codex" ] &&
-        [ -x "$release_dir/codex" ] &&
+        { [ -x "$release_dir/bin/codexium" ] || [ -x "$release_dir/bin/codex" ]; } &&
+        [ -x "$release_dir/codexium" ] &&
         [ -x "$release_dir/codex-path/rg" ] ||
         return 1
       ;;
     legacy-platform-npm)
-      [ -x "$release_dir/codex" ] &&
+      [ -x "$release_dir/codexium" ] &&
         [ -x "$release_dir/codex-resources/rg" ] ||
         return 1
       ;;
@@ -760,17 +785,19 @@ update_current_link() {
 release_codex_relative_path() {
   release_dir="$1"
 
-  if [ -x "$release_dir/bin/codex" ]; then
+  if [ -x "$release_dir/bin/codexium" ]; then
+    printf 'bin/codexium\n'
+  elif [ -x "$release_dir/bin/codex" ]; then
     printf 'bin/codex\n'
   else
-    printf 'codex\n'
+    printf 'codexium\n'
   fi
 }
 
 update_visible_command() {
   release_dir="$1"
   mkdir -p "$BIN_DIR"
-  tmp_link="$BIN_DIR/.codex.$$"
+  tmp_link="$BIN_DIR/.codexium.$$"
   codex_relative_path="$(release_codex_relative_path "$release_dir")"
 
   replace_path_with_symlink "$BIN_PATH" "$CURRENT_LINK/$codex_relative_path" "$tmp_link"

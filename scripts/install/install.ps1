@@ -261,6 +261,16 @@ function Get-CurrentInstalledVersion {
         [string]$StandaloneCurrentDir
     )
 
+    $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "bin\codexium.exe")
+    if (-not [string]::IsNullOrWhiteSpace($standaloneVersion)) {
+        return $standaloneVersion
+    }
+
+    $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "codexium.exe")
+    if (-not [string]::IsNullOrWhiteSpace($standaloneVersion)) {
+        return $standaloneVersion
+    }
+
     $standaloneVersion = Get-VersionFromBinary -CodexPath (Join-Path $StandaloneCurrentDir "bin\codex.exe")
     if (-not [string]::IsNullOrWhiteSpace($standaloneVersion)) {
         return $standaloneVersion
@@ -536,7 +546,7 @@ function Test-PackageContentsAreComplete {
 
     $expectedFiles = @(
         "codex-package.json",
-        "bin\codex.exe",
+        "bin\codexium.exe",
         "codex-path\rg.exe",
         "codex-resources\codex-command-runner.exe",
         "codex-resources\codex-windows-sandbox-setup.exe"
@@ -560,7 +570,7 @@ function Test-LegacyPlatformNpmContentsAreComplete {
     }
 
     $expectedFiles = @(
-        "codex.exe",
+        "codexium.exe",
         "codex-resources\codex-command-runner.exe",
         "codex-resources\codex-windows-sandbox-setup.exe",
         "codex-resources\rg.exe"
@@ -602,7 +612,7 @@ function Test-ReleaseIsComplete {
 }
 
 function Get-ExistingCodexCommand {
-    $existing = Get-Command codex -ErrorAction SilentlyContinue
+    $existing = Get-Command codexium -ErrorAction SilentlyContinue
     if ($null -eq $existing) {
         return $null
     }
@@ -681,7 +691,7 @@ function Maybe-HandleConflictingInstall {
             Write-WarningStep "Failed to uninstall the existing $manager-managed Codex. Continuing with the standalone install."
         }
     } else {
-        Write-WarningStep "Leaving the existing $manager-managed Codex installed. PATH order will determine which codex runs."
+        Write-WarningStep "Leaving the existing $manager-managed Codex installed. PATH order will determine which codexium runs."
     }
 }
 
@@ -690,7 +700,7 @@ function Test-VisibleCodexCommand {
         [string]$VisibleBinDir
     )
 
-    $codexCommand = Join-Path $VisibleBinDir "codex.exe"
+    $codexCommand = Join-Path $VisibleBinDir "codexium.exe"
     & $codexCommand --version *> $null
     if ($LASTEXITCODE -ne 0) {
         throw "Installed Codex command failed verification: $codexCommand --version"
@@ -729,7 +739,7 @@ switch ($architecture) {
 }
 
 $codexHome = if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
-    Join-Path $env:USERPROFILE ".codex"
+    Join-Path $env:USERPROFILE ".codexium"
 } else {
     $env:CODEX_HOME
 }
@@ -812,6 +822,11 @@ try {
             New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
             if ($installLayout -eq "Package") {
                 tar -xzf $archivePath -C $stagingDir
+                $codexiumExe = Join-Path $stagingDir "bin\codexium.exe"
+                $legacyCodexExe = Join-Path $stagingDir "bin\codex.exe"
+                if (-not (Test-Path -LiteralPath $codexiumExe -PathType Leaf) -and (Test-Path -LiteralPath $legacyCodexExe -PathType Leaf)) {
+                    Copy-Item -LiteralPath $legacyCodexExe -Destination $codexiumExe
+                }
                 if (-not (Test-PackageContentsAreComplete -PackageDir $stagingDir)) {
                     throw "Downloaded Codex package archive did not contain the expected package layout."
                 }
@@ -824,10 +839,16 @@ try {
                 $resourcesDir = Join-Path $stagingDir "codex-resources"
                 New-Item -ItemType Directory -Force -Path $resourcesDir | Out-Null
                 $copyMap = @{
-                    "codex/codex.exe" = "codex.exe"
                     "codex/codex-command-runner.exe" = "codex-resources\codex-command-runner.exe"
                     "codex/codex-windows-sandbox-setup.exe" = "codex-resources\codex-windows-sandbox-setup.exe"
                     "path/rg.exe" = "codex-resources\rg.exe"
+                }
+
+                $legacyCodexiumExe = Join-Path $vendorRoot "codex/codexium.exe"
+                if (Test-Path -LiteralPath $legacyCodexiumExe -PathType Leaf) {
+                    Copy-Item -LiteralPath $legacyCodexiumExe -Destination (Join-Path $stagingDir "codexium.exe")
+                } else {
+                    Copy-Item -LiteralPath (Join-Path $vendorRoot "codex/codex.exe") -Destination (Join-Path $stagingDir "codexium.exe")
                 }
 
                 foreach ($relativeSource in $copyMap.Keys) {
@@ -913,11 +934,11 @@ if ($prioritizeVisibleBin) {
     }
 }
 
-Write-Step "Current PowerShell session: codex"
-Write-Step "Future PowerShell windows: open a new PowerShell window and run: codex"
+Write-Step "Current PowerShell session: codexium"
+Write-Step "Future PowerShell windows: open a new PowerShell window and run: codexium"
 Write-Host "Codex CLI $resolvedVersion installed successfully."
 
-$codexCommand = Join-Path $visibleBinDir "codex.exe"
+$codexCommand = Join-Path $visibleBinDir "codexium.exe"
 if (Prompt-YesNo "Start Codex now?") {
     Write-Step "Launching Codex"
     & $codexCommand

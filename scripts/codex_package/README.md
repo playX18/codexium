@@ -30,8 +30,9 @@ artifacts; pass a GNU Linux target explicitly for native glibc local builds. If
 prints its path after the package is built.
 
 The `--variant` flag selects the package entrypoint. Supported variants are
-`codex` and `codex-app-server`. The `version` field in `codex-package.json` is
-read from `[workspace.package].version` in `codex-rs/Cargo.toml`.
+`codex` (which stages the `codexium` command) and `codex-app-server`. The
+`version` field in `codex-package.json` is read from `[workspace.package].version`
+in `codex-rs/Cargo.toml`.
 
 ## Source-built artifacts
 

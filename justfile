@@ -14,11 +14,11 @@ help:
 # `codex`
 alias c := codex
 codex *args:
-    cargo run --bin codex -- {args}
+    cargo run --bin codexium -- {args}
 
 # `codex exec`
 exec *args:
-    cargo run --bin codex -- exec {args}
+    cargo run --bin codexium -- exec {args}
 
 # Start `codex exec-server` and run codex-tui.
 [no-cd]
@@ -34,7 +34,7 @@ file-search *args:
 # Build the CLI and run the app-server test client
 app-server-test-client *args:
     cargo build -p codex-cli
-    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codex {args}
+    cargo run -p codex-app-server-test-client -- --codex-bin ./target/debug/codexium {args}
 
 # Format the justfile, Rust, Bazel/Starlark, Python SDK code, and Python scripts.
 fmt:
@@ -91,6 +91,17 @@ test-github-scripts:
 bench *args:
     cargo bench --workspace --bench '*' {args}
 
+# Build this checkout from source and install `codexium` to CODEX_INSTALL_DIR (default ~/.local/bin).
+[no-cd]
+[unix]
+install-local profile='release':
+    {{ justfile_directory() }}/scripts/install/local.sh --profile {{ profile }}
+
+[no-cd]
+[unix]
+install-local-debug:
+    {{ justfile_directory() }}/scripts/install/local.sh --profile debug
+
 # Run benchmark targets once to ensure they start successfully.
 bench-smoke:
     just bench -- --test
@@ -101,11 +112,11 @@ bench-smoke:
 [no-cd]
 [unix]
 bazel-codex *args:
-    bazel run //codex-rs/cli:codex --run_under="cd $PWD &&" -- "$@"
+    bazel run //codex-rs/cli:codexium --run_under="cd $PWD &&" -- "$@"
 
 [windows]
 bazel-codex *args:
-    bazel run //codex-rs/cli:codex --run_under='cd /d "{{ invocation_directory_native() }}" &&' -- @($args | Select-Object -Skip 1)
+    bazel run //codex-rs/cli:codexium --run_under='cd /d "{{ invocation_directory_native() }}" &&' -- @($args | Select-Object -Skip 1)
 
 [no-cd]
 bazel-lock-update:
