@@ -6,7 +6,7 @@ license.workspace = true
 build = "build.rs"
 
 [[bin]]
-name = "codex"
+name = "codexium"
 path = "src/main.rs"
 
 [lib]
@@ -45,7 +45,10 @@ codex-memories-write = { workspace = true }
 codex-mcp = { workspace = true }
 codex-mcp-server = { workspace = true }
 codex-model-provider = { workspace = true }
+codex-model-provider-info = { workspace = true }
+codex-models-dev = { workspace = true }
 codex-models-manager = { workspace = true }
+codex-provider-catalog = { workspace = true }
 codex-plugin = { workspace = true }
 codex-protocol = { workspace = true }
 codex-responses-api-proxy = { workspace = true }
@@ -58,12 +61,14 @@ codex-stdio-to-uds = { workspace = true }
 codex-terminal-detection = { workspace = true }
 codex-tui = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
+codex-utils-fuzzy-match = { workspace = true }
 codex-utils-path = { workspace = true }
 crossterm = { workspace = true }
 http = { workspace = true }
 libc = { workspace = true }
 os_info = { workspace = true }
 owo-colors = { workspace = true }
+ratatui = { workspace = true }
 regex-lite = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -80,6 +85,7 @@ tokio = { workspace = true, features = [
     "time",
 ] }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
