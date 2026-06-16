@@ -1,3 +1,4 @@
+mod compose;
 pub mod config_rules;
 pub mod injection;
 pub(crate) mod invocation_utils;
@@ -10,6 +11,7 @@ pub mod render;
 mod skill_instructions;
 pub mod system;
 
+pub use compose::build_compose_skills_catalog_from_outcome;
 pub(crate) use invocation_utils::build_implicit_skill_path_indexes;
 pub use invocation_utils::detect_implicit_skill_invocation_for_command;
 pub use manager::SkillsLoadInput;

@@ -1,3 +1,4 @@
+use crate::compose::compose_cache_root_dir;
 use crate::model::SkillDependencies;
 use crate::model::SkillError;
 use crate::model::SkillFileSystemsByPath;
@@ -333,6 +334,13 @@ fn skill_roots_from_layer_stack_inner(
                 // special case (not a config layer).
                 roots.push(SkillRoot {
                     path: system_cache_root_dir(&config_folder),
+                    scope: SkillScope::System,
+                    file_system: Arc::clone(&LOCAL_FS),
+                    plugin_id: None,
+                    plugin_root: None,
+                });
+                roots.push(SkillRoot {
+                    path: compose_cache_root_dir(&config_folder),
                     scope: SkillScope::System,
                     file_system: Arc::clone(&LOCAL_FS),
                     plugin_id: None,

@@ -15,6 +15,7 @@ use tracing::warn;
 
 use crate::SkillLoadOutcome;
 use crate::build_implicit_skill_path_indexes;
+use crate::compose::install_compose_skills;
 use crate::config_rules::SkillConfigRules;
 use crate::config_rules::resolve_disabled_skill_paths;
 use crate::config_rules::skill_config_rules_from_stack;
@@ -78,8 +79,13 @@ impl SkillsManager {
             // The loader caches bundled skills under `skills/.system`. Clearing that directory is
             // best-effort cleanup; root selection still enforces the config even if removal fails.
             uninstall_system_skills(&manager.codex_home);
-        } else if let Err(err) = install_system_skills(&manager.codex_home) {
-            tracing::error!("failed to install system skills: {err}");
+        } else {
+            if let Err(err) = install_system_skills(&manager.codex_home) {
+                tracing::error!("failed to install system skills: {err}");
+            }
+            if let Err(err) = install_compose_skills(&manager.codex_home) {
+                tracing::error!("failed to install compose skills: {err}");
+            }
         }
         manager
     }

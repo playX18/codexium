@@ -157,12 +157,37 @@ pub fn default_skill_metadata_budget(context_window: Option<i64>) -> SkillMetada
         ))
 }
 
+fn filtered_skills_for_available_skills(
+    outcome: &SkillLoadOutcome,
+    include_compose_skills: bool,
+) -> Vec<SkillMetadata> {
+    let mut skills: Vec<SkillMetadata> = outcome
+        .allowed_skills_for_implicit_invocation()
+        .into_iter()
+        .filter(|skill| !skill.name.starts_with("compose:"))
+        .collect();
+
+    if include_compose_skills {
+        for skill in &outcome.skills {
+            if skill.name.starts_with("compose:")
+                && outcome.is_skill_enabled(skill)
+                && !skills.iter().any(|existing| existing.name == skill.name)
+            {
+                skills.push(skill.clone());
+            }
+        }
+    }
+
+    skills
+}
+
 pub fn build_available_skills(
     outcome: &SkillLoadOutcome,
     budget: SkillMetadataBudget,
     side_effects: SkillRenderSideEffects<'_>,
+    include_compose_skills: bool,
 ) -> Option<AvailableSkills> {
-    let skills = outcome.allowed_skills_for_implicit_invocation();
+    let skills = filtered_skills_for_available_skills(outcome, include_compose_skills);
     if skills.is_empty() {
         record_skill_render_side_effects(
             side_effects,
@@ -1220,6 +1245,7 @@ mod tests {
             &outcome,
             SkillMetadataBudget::Characters(usize::MAX),
             SkillRenderSideEffects::None,
+            false,
         )
         .expect("skills should render");
 
@@ -1266,6 +1292,7 @@ mod tests {
             &outcome,
             SkillMetadataBudget::Characters(alias_minimum),
             SkillRenderSideEffects::None,
+            false,
         )
         .expect("skills should render");
 
@@ -1534,3 +1561,7 @@ mod tests {
         skill
     }
 }
+
+#[cfg(test)]
+#[path = "render_compose_tests.rs"]
+mod compose_filter_tests;
