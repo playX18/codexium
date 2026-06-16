@@ -87,6 +87,7 @@ impl ToolContributor for ImageGenerationExtension {
             CodexImagesBackend::new(create_model_provider(
                 config.provider.clone(),
                 Some(self.auth_manager.clone()),
+                None,
             )),
             config.codex_home.clone(),
             thread_store.level_id().to_string(),

@@ -124,6 +124,7 @@ impl ToolContributor for WebSearchExtension {
             provider: create_model_provider(
                 config.provider.clone(),
                 Some(self.auth_manager.clone()),
+                None,
             ),
             settings: config.settings.clone(),
         })]

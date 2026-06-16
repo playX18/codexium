@@ -9,13 +9,15 @@ use codex_api::SharedAuthProvider;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_model_provider_info::ModelProviderInfo;
-use codex_models_manager::manager::OpenAiModelsManager;
 use codex_models_manager::manager::SharedModelsManager;
 use codex_models_manager::manager::StaticModelsManager;
+use codex_models_manager::provider_catalog_manager::ProviderCatalogModelsManager;
+use codex_models_manager::provider_catalog_manager::openai_models_manager_with_provider_scope;
 use codex_protocol::account::ProviderAccount;
 use codex_protocol::openai_models::ModelsResponse;
 
 use crate::amazon_bedrock::AmazonBedrockModelProvider;
+use crate::auth::ProviderRuntimeContext;
 use crate::auth::auth_manager_for_provider;
 use crate::auth::resolve_provider_auth;
 use crate::models_endpoint::OpenAiModelsEndpoint;
@@ -161,13 +163,18 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
         Box::pin(async { Ok(self.info().base_url.clone()) })
     }
 
+    /// Returns optional runtime context for resolving provider-scoped credentials.
+    fn runtime_context(&self) -> Option<&ProviderRuntimeContext> {
+        None
+    }
+
     /// Returns the auth provider used to attach request credentials.
     fn api_auth(
         &self,
     ) -> ModelProviderFuture<'_, codex_protocol::error::Result<SharedAuthProvider>> {
         Box::pin(async move {
             let auth = self.auth().await;
-            resolve_provider_auth(auth.as_ref(), self.info())
+            resolve_provider_auth(auth.as_ref(), self.info(), self.runtime_context())
         })
     }
 
@@ -175,6 +182,7 @@ pub trait ModelProvider: fmt::Debug + Send + Sync {
     fn models_manager(
         &self,
         codex_home: PathBuf,
+        provider_id: &str,
         config_model_catalog: Option<ModelsResponse>,
     ) -> SharedModelsManager;
 }
@@ -188,11 +196,16 @@ pub type SharedModelProvider = Arc<dyn ModelProvider>;
 pub fn create_model_provider(
     provider_info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
+    runtime_context: Option<ProviderRuntimeContext>,
 ) -> SharedModelProvider {
     if provider_info.is_amazon_bedrock() {
         Arc::new(AmazonBedrockModelProvider::new(provider_info, auth_manager))
     } else {
-        Arc::new(ConfiguredModelProvider::new(provider_info, auth_manager))
+        Arc::new(ConfiguredModelProvider::new(
+            provider_info,
+            auth_manager,
+            runtime_context,
+        ))
     }
 }
 
@@ -201,14 +214,20 @@ pub fn create_model_provider(
 struct ConfiguredModelProvider {
     info: ModelProviderInfo,
     auth_manager: Option<Arc<AuthManager>>,
+    runtime_context: Option<ProviderRuntimeContext>,
 }
 
 impl ConfiguredModelProvider {
-    fn new(provider_info: ModelProviderInfo, auth_manager: Option<Arc<AuthManager>>) -> Self {
+    fn new(
+        provider_info: ModelProviderInfo,
+        auth_manager: Option<Arc<AuthManager>>,
+        runtime_context: Option<ProviderRuntimeContext>,
+    ) -> Self {
         let auth_manager = auth_manager_for_provider(auth_manager, &provider_info);
         Self {
             info: provider_info,
             auth_manager,
+            runtime_context,
         }
     }
 }
@@ -216,6 +235,10 @@ impl ConfiguredModelProvider {
 impl ModelProvider for ConfiguredModelProvider {
     fn info(&self) -> &ModelProviderInfo {
         &self.info
+    }
+
+    fn runtime_context(&self) -> Option<&ProviderRuntimeContext> {
+        self.runtime_context.as_ref()
     }
 
     fn auth_manager(&self) -> Option<Arc<AuthManager>> {
@@ -283,25 +306,40 @@ impl ModelProvider for ConfiguredModelProvider {
     fn models_manager(
         &self,
         codex_home: PathBuf,
+        provider_id: &str,
         config_model_catalog: Option<ModelsResponse>,
     ) -> SharedModelsManager {
-        match config_model_catalog {
-            Some(model_catalog) => Arc::new(StaticModelsManager::new(
+        if let Some(model_catalog) = config_model_catalog {
+            return Arc::new(StaticModelsManager::new(
                 self.auth_manager.clone(),
                 model_catalog,
-            )),
-            None => {
-                let endpoint = Arc::new(OpenAiModelsEndpoint::new(
-                    self.info.clone(),
-                    self.auth_manager.clone(),
-                ));
-                Arc::new(OpenAiModelsManager::new(
-                    codex_home,
-                    endpoint,
-                    self.auth_manager.clone(),
-                ))
-            }
+            ));
         }
+
+        if let Some(catalog_manager) = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(
+                ProviderCatalogModelsManager::bootstrap_from_disk(
+                    codex_home.clone(),
+                    provider_id.to_string(),
+                    self.auth_manager.clone(),
+                ),
+            )
+        }) {
+            catalog_manager.spawn_background_refresh();
+            return Arc::new(catalog_manager);
+        }
+
+        let endpoint = Arc::new(OpenAiModelsEndpoint::new(
+            self.info.clone(),
+            self.auth_manager.clone(),
+            self.runtime_context.clone(),
+        ));
+        Arc::new(openai_models_manager_with_provider_scope(
+            codex_home,
+            provider_id,
+            endpoint,
+            self.auth_manager.clone(),
+        ))
     }
 }
 
@@ -409,6 +447,7 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
             /*auth_manager*/ None,
+            None,
         );
 
         assert_eq!(provider.capabilities(), ProviderCapabilities::default());
@@ -419,6 +458,7 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
             /*auth_manager*/ None,
+            None,
         );
 
         assert_eq!(
@@ -432,6 +472,7 @@ mod tests {
         let provider = create_model_provider(
             provider_for("https://example.test/v1".to_string()),
             /*auth_manager*/ None,
+            None,
         );
 
         assert_eq!(
@@ -448,6 +489,7 @@ mod tests {
         let provider = create_model_provider(
             provider_info_with_command_auth(),
             /*auth_manager*/ None,
+            None,
         );
 
         let auth_manager = provider
@@ -467,6 +509,7 @@ mod tests {
             Some(AuthManager::from_auth_for_testing(CodexAuth::from_api_key(
                 "openai-api-key",
             ))),
+            None,
         );
 
         assert!(provider.auth_manager().is_none());
@@ -478,6 +521,7 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None),
             Some(AuthManager::from_auth_for_testing(auth.clone())),
+            None,
         );
 
         assert_eq!(provider.auth().await, Some(auth));
@@ -488,6 +532,7 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
             /*auth_manager*/ None,
+            None,
         );
 
         assert_eq!(
@@ -506,6 +551,7 @@ mod tests {
             Some(AuthManager::from_auth_for_testing(CodexAuth::from_api_key(
                 "openai-api-key",
             ))),
+            None,
         );
 
         assert_eq!(
@@ -524,6 +570,7 @@ mod tests {
             Some(AuthManager::from_auth_for_testing(
                 CodexAuth::create_dummy_chatgpt_auth_for_testing(),
             )),
+            None,
         );
 
         assert_eq!(
@@ -537,6 +584,7 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_openai_provider(/*base_url*/ None),
             Some(AuthManager::from_auth_for_testing(bedrock_api_key_auth())),
+            None,
         );
 
         assert_eq!(
@@ -556,6 +604,7 @@ mod tests {
                 ..Default::default()
             },
             /*auth_manager*/ None,
+            None,
         );
 
         assert_eq!(
@@ -572,6 +621,7 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None),
             /*auth_manager*/ None,
+            None,
         );
 
         assert_eq!(
@@ -591,9 +641,13 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None),
             /*auth_manager*/ None,
+            None,
         );
-        let manager =
-            provider.models_manager(test_codex_home(), /*config_model_catalog*/ None);
+        let manager = provider.models_manager(
+            test_codex_home(),
+            "openai",
+            /*config_model_catalog*/ None,
+        );
 
         let catalog = manager.raw_model_catalog(RefreshStrategy::Online).await;
         let model_ids = catalog
@@ -628,9 +682,11 @@ mod tests {
         let provider = create_model_provider(
             ModelProviderInfo::create_amazon_bedrock_provider(/*aws*/ None),
             /*auth_manager*/ None,
+            None,
         );
         let manager = provider.models_manager(
             test_codex_home(),
+            codex_model_provider_info::AMAZON_BEDROCK_PROVIDER_ID,
             Some(ModelsResponse {
                 models: vec![configured_model],
             }),
@@ -674,10 +730,14 @@ mod tests {
             Some(AuthManager::from_auth_for_testing(
                 CodexAuth::create_dummy_chatgpt_auth_for_testing(),
             )),
+            None,
         );
 
-        let manager =
-            provider.models_manager(test_codex_home(), /*config_model_catalog*/ None);
+        let manager = provider.models_manager(
+            test_codex_home(),
+            "openai",
+            /*config_model_catalog*/ None,
+        );
         let catalog = manager.raw_model_catalog(RefreshStrategy::Online).await;
 
         assert!(

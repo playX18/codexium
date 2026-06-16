@@ -1,0 +1,26 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "codex-wire-bridge"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "codex_wire_bridge"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-stream = { workspace = true }
+bytes = { workspace = true }
+codex-model-provider-info = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }

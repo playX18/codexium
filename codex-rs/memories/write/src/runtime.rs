@@ -87,6 +87,10 @@ impl MemoryStartupContext {
         let provider = create_model_provider(
             config.model_provider.clone(),
             Some(Arc::clone(&auth_manager)),
+            Some(codex_model_provider::ProviderRuntimeContext::new(
+                config.model_provider_id.clone(),
+                config.codex_home.to_path_buf(),
+            )),
         );
         Self::new_with_provider(
             thread_manager,
@@ -230,6 +234,10 @@ impl MemoryStartupContext {
             Some(Arc::clone(&self.auth_manager)),
             self.thread_id,
             config.model_provider.clone(),
+            Some(codex_model_provider::ProviderRuntimeContext::new(
+                config.model_provider_id.clone(),
+                config.codex_home.to_path_buf(),
+            )),
             session_source.clone(),
             config.model_verbosity,
             config.features.enabled(Feature::EnableRequestCompression),

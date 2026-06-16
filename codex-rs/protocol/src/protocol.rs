@@ -455,6 +455,12 @@ pub struct ThreadSettingsOverrides {
     /// Updated model slug. When set, the model info is derived automatically.
     pub model: Option<String>,
 
+    /// Updated model provider id.
+    pub model_provider: Option<String>,
+
+    /// Resolved provider definition for `model_provider`.
+    pub model_provider_info: Option<Value>,
+
     /// Updated reasoning effort (honored only for reasoning-capable models).
     ///
     /// Use `Some(Some(_))` to set a specific effort, `Some(None)` to clear the

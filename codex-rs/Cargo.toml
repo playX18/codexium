@@ -68,7 +68,9 @@ members = [
     "memories/read",
     "memories/write",
     "model-provider-info",
+    "models-dev",
     "models-manager",
+    "provider-catalog",
     "network-proxy",
     "ollama",
     "process-hardening",
@@ -120,6 +122,7 @@ members = [
     "uds",
     "codex-experimental-api-macros",
     "plugin",
+    "wire-bridge",
     "model-provider",
 ]
 resolver = "2"
@@ -200,7 +203,9 @@ codex-mcp = { path = "codex-mcp" }
 codex-mcp-extension = { path = "ext/mcp" }
 codex-mcp-server = { path = "mcp-server" }
 codex-model-provider-info = { path = "model-provider-info" }
+codex-models-dev = { path = "models-dev" }
 codex-models-manager = { path = "models-manager" }
+codex-provider-catalog = { path = "provider-catalog" }
 codex-network-proxy = { path = "network-proxy" }
 codex-ollama = { path = "ollama" }
 codex-otel = { path = "otel" }
@@ -228,6 +233,7 @@ codex-thread-store = { path = "thread-store" }
 codex-tools = { path = "tools" }
 codex-tui = { path = "tui" }
 codex-uds = { path = "uds" }
+codex-wire-bridge = { path = "wire-bridge" }
 codex-utils-absolute-path = { path = "utils/absolute-path" }
 codex-utils-approval-presets = { path = "utils/approval-presets" }
 codex-utils-cache = { path = "utils/cache" }

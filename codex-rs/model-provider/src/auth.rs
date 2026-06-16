@@ -1,3 +1,5 @@
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use codex_agent_identity::AgentIdentityKey;
@@ -9,6 +11,8 @@ use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_protocol::error::CodexErr;
+use codex_provider_catalog::ProviderAuthStore;
+use codex_provider_catalog::resolve_env_key_api_key;
 use http::HeaderMap;
 use http::HeaderValue;
 
@@ -16,6 +20,35 @@ use crate::bearer_auth_provider::BearerAuthProvider;
 
 const BEDROCK_API_KEY_UNSUPPORTED_MESSAGE: &str =
     "Bedrock API key auth is only supported by the Amazon Bedrock model provider";
+
+/// Runtime context needed to resolve provider credentials from `provider-auth.json`.
+#[derive(Debug, Clone)]
+pub struct ProviderRuntimeContext {
+    pub provider_id: String,
+    pub codex_home: PathBuf,
+}
+
+impl ProviderRuntimeContext {
+    pub fn new(provider_id: impl Into<String>, codex_home: impl Into<PathBuf>) -> Self {
+        Self {
+            provider_id: provider_id.into(),
+            codex_home: codex_home.into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ProviderAuthStoreSnapshot {
+    store: ProviderAuthStore,
+}
+
+impl ProviderAuthStoreSnapshot {
+    fn load(codex_home: &Path) -> Self {
+        Self {
+            store: ProviderAuthStore::load_from(codex_home).unwrap_or_default(),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 struct AgentIdentityAuthProvider {
@@ -82,6 +115,7 @@ pub(crate) fn auth_manager_for_provider(
 pub(crate) fn resolve_provider_auth(
     auth: Option<&CodexAuth>,
     provider: &ModelProviderInfo,
+    runtime_context: Option<&ProviderRuntimeContext>,
 ) -> codex_protocol::error::Result<SharedAuthProvider> {
     if matches!(auth, Some(CodexAuth::BedrockApiKey(_))) {
         return Err(CodexErr::UnsupportedOperation(
@@ -89,7 +123,7 @@ pub(crate) fn resolve_provider_auth(
         ));
     }
 
-    if let Some(auth) = bearer_auth_for_provider(provider)? {
+    if let Some(auth) = bearer_auth_for_provider(provider, runtime_context)? {
         return Ok(Arc::new(auth));
     }
 
@@ -101,8 +135,9 @@ pub(crate) fn resolve_provider_auth(
 
 fn bearer_auth_for_provider(
     provider: &ModelProviderInfo,
+    runtime_context: Option<&ProviderRuntimeContext>,
 ) -> codex_protocol::error::Result<Option<BearerAuthProvider>> {
-    if let Some(api_key) = provider.api_key()? {
+    if let Some(api_key) = resolve_env_key_auth(provider, runtime_context)? {
         return Ok(Some(BearerAuthProvider::new(api_key)));
     }
 
@@ -111,6 +146,31 @@ fn bearer_auth_for_provider(
     }
 
     Ok(None)
+}
+
+fn resolve_env_key_auth(
+    provider: &ModelProviderInfo,
+    runtime_context: Option<&ProviderRuntimeContext>,
+) -> codex_protocol::error::Result<Option<String>> {
+    let Some(runtime_context) = runtime_context else {
+        return provider.api_key();
+    };
+
+    resolve_provider_env_key_auth(
+        &runtime_context.provider_id,
+        provider,
+        &runtime_context.codex_home,
+    )
+}
+
+/// Resolves an API key for providers configured with `env_key`.
+pub fn resolve_provider_env_key_auth(
+    provider_id: &str,
+    provider: &ModelProviderInfo,
+    codex_home: &Path,
+) -> codex_protocol::error::Result<Option<String>> {
+    let auth_store = ProviderAuthStoreSnapshot::load(codex_home);
+    resolve_env_key_api_key(provider_id, provider, &auth_store.store)
 }
 
 /// Builds request-header auth for a first-party Codex auth snapshot.
@@ -144,7 +204,9 @@ mod tests {
     fn unauthenticated_auth_provider_adds_no_headers() {
         let provider =
             create_oss_provider_with_base_url("http://localhost:11434/v1", WireApi::Responses);
-        let auth = resolve_provider_auth(/*auth*/ None, &provider).expect("auth should resolve");
+        let auth =
+            resolve_provider_auth(/*auth*/ None, &provider, /*runtime_context*/ None)
+                .expect("auth should resolve");
 
         assert!(auth.to_auth_headers().is_empty());
     }
@@ -157,7 +219,7 @@ mod tests {
             region: "us-east-1".to_string(),
         });
 
-        match resolve_provider_auth(Some(&auth), &provider) {
+        match resolve_provider_auth(Some(&auth), &provider, /*runtime_context*/ None) {
             Err(CodexErr::UnsupportedOperation(message)) => {
                 assert_eq!(message, BEDROCK_API_KEY_UNSUPPORTED_MESSAGE);
             }

@@ -593,7 +593,7 @@ struct MockMemoryModelProvider {
 impl MockMemoryModelProvider {
     fn new(info: ModelProviderInfo, auth_manager: Option<Arc<AuthManager>>) -> Self {
         Self {
-            delegate: create_model_provider(info, auth_manager),
+            delegate: create_model_provider(info, auth_manager, None),
         }
     }
 }
@@ -627,10 +627,11 @@ impl ModelProvider for MockMemoryModelProvider {
     fn models_manager(
         &self,
         codex_home: PathBuf,
+        provider_id: &str,
         config_model_catalog: Option<ModelsResponse>,
     ) -> codex_models_manager::manager::SharedModelsManager {
         self.delegate
-            .models_manager(codex_home, config_model_catalog)
+            .models_manager(codex_home, provider_id, config_model_catalog)
     }
 }
 

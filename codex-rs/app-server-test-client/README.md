@@ -1,5 +1,5 @@
 # App Server Test Client
-Quickstart for running and hitting `codex app-server`.
+Quickstart for running and hitting `codexium app-server`.
 
 ## Quickstart
 
@@ -7,11 +7,11 @@ Run from `<reporoot>/codex-rs`.
 
 ```bash
 # 1) Build debug codex binary
-cargo build -p codex-cli --bin codex
+cargo build -p codex-cli --bin codexium
 
 # 2) Start websocket app-server in background
 cargo run -p codex-app-server-test-client -- \
-  --codex-bin ./target/debug/codex \
+  --codex-bin ./target/debug/codexium \
   serve --listen ws://127.0.0.1:4222 --kill
 
 # 3) Call app-server (defaults to ws://127.0.0.1:4222)
@@ -47,12 +47,12 @@ Copy a thread id from the `thread-list` output.
 Terminal A:
 
 ```bash
-cargo run --bin codex-app-server-test-client -- \
+cargo run --bin codexium-app-server-test-client -- \
   resume-message-v2 <THREAD_ID> "respond with thorough docs on the rust core"
 ```
 
 Terminal B (while Terminal A is still streaming):
 
 ```bash
-cargo run --bin codex-app-server-test-client -- thread-resume <THREAD_ID>
+cargo run --bin codexium-app-server-test-client -- thread-resume <THREAD_ID>
 ```

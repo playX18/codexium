@@ -47,13 +47,68 @@ const CHAT_WIRE_API_REMOVED_ERROR: &str = "`wire_api = \"chat\"` is no longer su
 pub const LEGACY_OLLAMA_CHAT_PROVIDER_ID: &str = "ollama-chat";
 pub const OLLAMA_CHAT_PROVIDER_REMOVED_ERROR: &str = "`ollama-chat` is no longer supported.\nHow to fix: replace `ollama-chat` with `ollama` in `model_provider`, `oss_provider`, or `--local-provider`.\nMore info: https://github.com/openai/codex/discussions/7782";
 
-/// Wire protocol that the provider speaks.
+/// Wire protocol that Codex speaks internally (always Responses for third-party bridging).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum WireApi {
     /// The Responses API exposed by OpenAI at `/v1/responses`.
     #[default]
     Responses,
+}
+
+/// Upstream wire protocol exposed by the provider endpoint.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum UpstreamWireApi {
+    /// Provider speaks OpenAI Responses natively.
+    #[default]
+    Responses,
+    /// Provider speaks OpenAI Chat Completions; Codex bridges Responses internally.
+    ChatCompletions,
+}
+
+impl fmt::Display for UpstreamWireApi {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Responses => "responses",
+            Self::ChatCompletions => "chat_completions",
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for UpstreamWireApi {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "responses" => Ok(Self::Responses),
+            "chat" | "chat_completions" => Ok(Self::ChatCompletions),
+            _ => Err(serde::de::Error::unknown_variant(
+                &value,
+                &["responses", "chat_completions"],
+            )),
+        }
+    }
+}
+
+/// Reasoning capability metadata for Responses→Chat bridging.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct CodexChatReasoningConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_thinking: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_effort: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_param: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort_param: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort_value_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_format: Option<String>,
 }
 
 impl fmt::Display for WireApi {
@@ -105,6 +160,12 @@ pub struct ModelProviderInfo {
     /// Which wire protocol this provider expects.
     #[serde(default)]
     pub wire_api: WireApi,
+    /// Upstream wire protocol the provider endpoint exposes.
+    #[serde(default)]
+    pub upstream_wire_api: UpstreamWireApi,
+    /// Reasoning metadata for Responses→Chat bridging.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex_chat_reasoning: Option<CodexChatReasoningConfig>,
     /// Optional query parameters to append to the base URL.
     pub query_params: Option<HashMap<String, String>>,
     /// Additional HTTP headers to include in requests to this provider where
@@ -355,6 +416,7 @@ impl ModelProviderInfo {
             websocket_connect_timeout_ms: None,
             requires_openai_auth: true,
             supports_websockets: true,
+            ..Default::default()
         }
     }
 
@@ -385,6 +447,7 @@ impl ModelProviderInfo {
             websocket_connect_timeout_ms: None,
             requires_openai_auth: false,
             supports_websockets: false,
+            ..Default::default()
         }
     }
 
@@ -516,6 +579,7 @@ pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> M
         websocket_connect_timeout_ms: None,
         requires_openai_auth: false,
         supports_websockets: false,
+        ..Default::default()
     }
 }
 

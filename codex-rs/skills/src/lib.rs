@@ -7,6 +7,12 @@ use std::hash::Hasher;
 
 use thiserror::Error;
 
+mod compose;
+
+pub use compose::build_compose_skills_catalog;
+pub use compose::compose_cache_root_dir;
+pub use compose::install_compose_skills;
+
 const SYSTEM_SKILLS_DIR: Dir = include_dir::include_dir!("$CARGO_MANIFEST_DIR/src/assets/samples");
 
 const SYSTEM_SKILLS_DIR_NAME: &str = ".system";
